@@ -55,9 +55,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      start_period: 5s
-      interval: 10s
-      timeout: 5s
+      interval: 4s
       retries: 3
     volumes:
       - db-data:/var/lib/mysql
