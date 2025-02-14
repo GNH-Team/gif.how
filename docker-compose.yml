@@ -1,0 +1,108 @@
+name: gifhow
+services:
+  directus:
+    image: directus/directus:latest
+    container_name: gifhow-directus
+    ports:
+      - "8055:8055"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      PUBLIC_URL: $PUBLIC_URL
+
+      DB_CLIENT: $DB_CLIENT
+      DB_HOST: $DB_HOST
+      DB_PORT: $DB_PORT
+      DB_DATABASE: $DB_DATABASE
+      DB_USER: $DB_USER
+      DB_PASSWORD: $DB_PASSWORD
+
+      SECRET: $SECRET
+      ADMIN_EMAIL: $ADMIN_EMAIL
+      ADMIN_PASSWORD: $ADMIN_PASSWORD
+
+      STORAGE_LOCATIONS: $STORAGE_LOCATIONS
+      STORAGE_CLOUDINARY_DRIVER: $STORAGE_CLOUDINARY_DRIVER
+      STORAGE_CLOUDINARY_CLOUD_NAME: $STORAGE_CLOUDINARY_CLOUD_NAME
+      STORAGE_CLOUDINARY_API_KEY: $STORAGE_CLOUDINARY_API_KEY
+      STORAGE_CLOUDINARY_API_SECRET: $STORAGE_CLOUDINARY_API_SECRET
+      STORAGE_CLOUDINARY_ACCESS_MODE: $STORAGE_CLOUDINARY_ACCESS_MODE
+
+      STORAGE_CLOUDINARY_HEALTHCHECK_THRESHOLD: $STORAGE_CLOUDINARY_HEALTHCHECK_THRESHOLD
+
+      FILES_MAX_UPLOAD_SIZE: $FILES_MAX_UPLOAD_SIZE
+      FILES_MIME_TYPE_ALLOW_LIST: $FILES_MIME_TYPE_ALLOW_LIST
+
+      TUS_ENABLED: $TUS_ENABLED
+      TUS_CHUNK_SIZE: $TUS_CHUNK_SIZE
+      TUS_UPLOAD_EXPIRATION: $TUS_UPLOAD_EXPIRATION
+      TUS_CLEANUP_SCHEDULE: $TUS_CLEANUP_SCHEDULE
+    volumes:
+      - ./directus/extensions:/directus/extensions
+    networks:
+      - hownet
+
+  mariadb:
+    image: mariadb:latest
+    container_name: gifhow-mariadb
+    hostname: mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 5s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - hownet
+
+  adminer:
+    image: adminer:latest
+    container_name: gifhow-adminer
+    ports:
+      - "7192:8080"
+    depends_on:
+      - mariadb
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+    networks:
+      - hownet
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gifhow-prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus:/etc/prometheus
+    networks:
+      - hownet
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gifhow-grafana
+    ports:
+      - "4000:3000"
+    volumes:
+      - ./data:/var/lib/grafana
+    restart: always
+    depends_on:
+      - prometheus
+    networks:
+      - hownet
+
+networks:
+  hownet:
+
+volumes:
+  db-data:
