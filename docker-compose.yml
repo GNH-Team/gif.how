@@ -4,7 +4,7 @@ services:
     image: directus/directus:latest
     container_name: gifhow-directus
     ports:
-      - "8055:8055"
+      - "10001:8055"
     depends_on:
       mariadb:
         condition: service_healthy
@@ -39,6 +39,8 @@ services:
     image: mariadb:latest
     container_name: gifhow-mariadb
     hostname: mariadb
+    ports:
+      - "127.0.0.1:10002:3306"
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
@@ -58,7 +60,7 @@ services:
     image: adminer:latest
     container_name: gifhow-adminer
     ports:
-      - "7192:8080"
+      - "10003:8080"
     depends_on:
       - mariadb
     environment:
@@ -69,7 +71,7 @@ services:
     image: prom/prometheus:latest
     container_name: gifhow-prometheus
     ports:
-      - "9090:9090"
+      - "10004:9090"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     volumes:
@@ -81,7 +83,7 @@ services:
     image: grafana/grafana:latest
     container_name: gifhow-grafana
     ports:
-      - "4000:3000"
+      - "10005:3000"
     volumes:
       - ./data:/var/lib/grafana
     restart: always
@@ -95,7 +97,7 @@ services:
     restart: on-failure
     container_name: gifhow-typesense
     ports:
-      - "8108:8108"
+      - "10006:8108"
     environment:
       TYPESENSE_DATA_DIR: $TYPESENSE_DATA_DIR
       TYPESENSE_API_KEY: $TYPESENSE_API_KEY
