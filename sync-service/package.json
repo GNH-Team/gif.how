@@ -1,0 +1,32 @@
+{
+  "name": "sync-service",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "sync": "bun prisma db pull && bun prisma generate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "latest",
+    "prisma": "^6.4.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "typesense": "^2.0.2",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "winston-loki": "^6.1.3"
+  },
+  "trustedDependencies": [
+    "@biomejs/biome",
+    "@prisma/client",
+    "@prisma/engines",
+    "esbuild",
+    "prisma",
+    "protobufjs"
+  ]
+}
