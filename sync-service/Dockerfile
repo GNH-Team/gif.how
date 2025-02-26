@@ -7,13 +7,11 @@ WORKDIR /app
 # Copy dependency manifests.
 COPY package.json bun.lock .env ./
 
-
-# Copy prisma folder
-COPY prisma prisma
-
 # Install dependencies with Bun.
 RUN bun install
 
+# Prisma setup
+RUN bun init
 RUN bun sync
 
 # Copy the rest of your application code.

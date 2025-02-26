@@ -4,12 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "bun run index.ts",
+    "init": "bun prisma init --provider=mysql",
     "sync": "bun prisma db pull && bun prisma generate"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/bun": "latest",
-    "prisma": "^6.4.1"
+    "prisma": "^6.4.1",
+    "type-fest": "^4.35.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

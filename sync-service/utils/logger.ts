@@ -4,12 +4,11 @@ import LokiTransport from "winston-loki";
 
 // Create a Loki transport instance to send logs to Grafana Loki.
 const lokiTransport = new LokiTransport({
-	host: process.env.LOKI_URL || "http://localhost:3100", // URL of your Loki instance.
-	json: true, // Ensure logs are sent in JSON format.
+	host: process.env.LOKI_URL || "http://localhost:3100",
+	json: true,
 	labels: { app: "sync-service" },
 });
 
-// Configure Winston logger with Console, Daily Rotate File, and Loki transports.
 const logger = winston.createLogger({
 	level: process.env.LOG_LEVEL || "info",
 	format: winston.format.combine(
@@ -23,7 +22,7 @@ const logger = winston.createLogger({
 			datePattern: "DD-MM-YYYY",
 			zippedArchive: true,
 			maxSize: "20m",
-			maxFiles: "14d", // Retain logs for 14 days.
+			maxFiles: "14d",
 		}),
 		lokiTransport,
 	],
