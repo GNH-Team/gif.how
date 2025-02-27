@@ -14,10 +14,10 @@ async function ensureCollectionExists(): Promise<void> {
 		await typesense.collections().create({
 			name: targetCollection,
 			fields: [
-				{ name: "keywords", type: "string[]", optional: true },
-				{ name: "title", type: "string[]" },
-				{ name: "slug", type: "string[]" },
-				{ name: "updated_at", type: "int64" },
+				{ name: "keywords", type: "auto", optional: true },
+				{ name: "title", type: "auto" },
+				{ name: "slug", type: "auto" },
+				{ name: "updated_at", type: "auto" },
 			],
 			enable_nested_fields: true,
 			default_sorting_field: "updated_at",
@@ -30,8 +30,16 @@ async function ensureCollectionExists(): Promise<void> {
 
 async function syncUpdatedItems(): Promise<void> {
 	const updatedItems = await prisma.video.findMany({
-		include: {
-			video_translations: true,
+		select: {
+			id: true,
+			updated_at: true,			
+			video_translations: {
+				select: {
+					keywords: true,
+					title: true,
+					slug: true,
+				},
+			},
 		},
 		where: {
 			status: "processed",
