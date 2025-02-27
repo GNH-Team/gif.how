@@ -1,5 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
-import type { Entries, Simplify } from "type-fest";
+import type { Entries } from "type-fest";
 import logger from "./logger";
 
 // Define the expected types for our environment variables.
@@ -61,39 +60,6 @@ export class Config {
 	private config: ConfigType;
 
 	/**
-	 * Reads the provided env file (if exists) and loads variables into process.env.
-	 */
-	// private loadEnvFile(envFilePath: string): void {
-	// 	if (existsSync(envFilePath)) {
-	// 		const fileContents = readFileSync(envFilePath, "utf8");
-	// 		const lines = fileContents.split(/\r?\n/);
-	// 		for (const line of lines) {
-	// 			const trimmedLine = line.trim();
-	// 			// Skip empty lines and comments.
-	// 			if (!trimmedLine || trimmedLine.startsWith("#")) continue;
-
-	// 			const equalIndex = trimmedLine.indexOf("=");
-	// 			if (equalIndex === -1) continue;
-
-	// 			const key = trimmedLine.substring(0, equalIndex).trim();
-	// 			let value = trimmedLine.substring(equalIndex + 1).trim();
-
-	// 			// Remove wrapping quotes if present.
-	// 			if (
-	// 				(value.startsWith('"') && value.endsWith('"')) ||
-	// 				(value.startsWith("'") && value.endsWith("'"))
-	// 			) {
-	// 				value = value.substring(1, value.length - 1);
-	// 			}
-	// 			// Do not override existing environment variables.
-	// 			if (process.env[key] === undefined) {
-	// 				process.env[key] = value;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	/**
 	 * Converts the string value to the target type.
 	 */
 	private convertValue(key: string, value: unknown, type: EnvValueType) {
@@ -124,14 +90,14 @@ export class Config {
 
 		return entries.reduce(
 			(acc, [propName, { type, defaultValue, required }]) => {
-				let rawValue = this.convertValue(propName, process.env[propName], type);
-
-				if (required && (rawValue === "" || rawValue === null)) {
+				if (process.env[propName] === undefined && required) {
 					logger.error(`Missing required environment variable: ${propName}`);
-					// throw new Error(`Missing required environment variable: ${propName}`);
+					throw new Error();
 				}
 
-				rawValue = defaultValue as ConfigType[keyof ConfigType];
+				const rawValue =
+					this.convertValue(propName, process.env[propName], type) ||
+					defaultValue;
 
 				return Object.assign(acc, { [propName]: rawValue });
 			},

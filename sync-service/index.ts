@@ -9,11 +9,11 @@ async function main() {
 		label: "sync-service",
 	});
 
-	// // Perform an initial sync.
-	// await pollAndSync();
+	// Perform an initial sync.
+	await pollAndSync();
 
-	// // Set up the polling loop.
-	// setInterval(pollAndSync, env.POLL_INTERVAL);
+	// Set up the polling loop.
+	setInterval(pollAndSync, env.POLL_INTERVAL);
 }
 
 main().catch((err) => {

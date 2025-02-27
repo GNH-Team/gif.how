@@ -1,15 +1,13 @@
-# search-synchronizer
+# Production
 
-To install dependencies:
+1. bun install
+2. bun copy
+3. docker compose up -d --build
 
-```bash
-bun install
-```
+# Development
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.2. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+1. bun install
+2. Tạo .env giống như .env.example
+3. bun init
+4. bun sync
+5. bun dev

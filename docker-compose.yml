@@ -148,23 +148,19 @@ services:
     build:
       context: ./sync-service
       dockerfile: Dockerfile
-    environment:
-      # Application settings.
-      POLL_INTERVAL: ${POLL_INTERVAL}
-      TYPESENSE_HOST: ${TYPESENSE_HOST}
-      TYPESENSE_PORT: ${TYPESENSE_PORT}
-      TYPESENSE_PROTOCOL: ${TYPESENSE_PROTOCOL}
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
-      LOKI_URL: ${LOKI_URL}
     volumes:
       - ./logs:/logs
     depends_on:
-      - mariadb
-      - typesense
-      - loki
+      mariadb:
+        condition: service_healthy
+      typesense:
+        condition: service_started
+      loki:
+        condition: service_started
     restart: always
     networks:
       - hownet
+      - loki
 
 networks:
   hownet:
