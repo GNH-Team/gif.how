@@ -1,34 +1,72 @@
 import prisma from "./prisma";
 import typesense from "./typesense";
 import logger from "./logger";
-import { forEach } from "rambda";
+import { chain, tryCatch } from "rambda";
+import type { video, video_translations } from "@prisma/client";
+import type { Simplify } from "type-fest";
 
-let lastSyncTime: Date = new Date(0);
-const targetCollection = "videos";
+let LAST_SYNC_TIME: Date = new Date(0);
+const TARGET_COLLECTION = "videos";
 
-type VideoLang = "en-US" | "es-ES" | "jp-JP" | "vn-VN" | "fr-FR" | "de-DE";
+type UnprocessedVideoTranslation = Pick<
+	video_translations,
+	"languages_code" | "keywords" | "title" | "slug"
+>;
 
-interface VideoDocument {
-	id: string;
-	keywords: string | null;
-	title: string | null;
-	slug: string | null;
-}
+type UnprocessedVideo = Pick<video, "id" | "updated_at"> & {
+	video_translations: UnprocessedVideoTranslation[];
+};
 
 interface VideoTranslation {
-	lang: VideoLang | null;
-	content: VideoDocument;
+	id: string;
 	updated_at: number;
+	lang: UnprocessedVideoTranslation["languages_code"];
+	content: Simplify<Omit<UnprocessedVideoTranslation, "languages_code">>;
 }
 
+const processTranslation = async (
+	item: UnprocessedVideo,
+	translation: UnprocessedVideoTranslation,
+): Promise<void> => {
+	const doc = {
+		id: String(item.id),
+		lang: translation.languages_code,
+		content: {
+			keywords: translation.keywords,
+			title: translation.title,
+			slug: translation.slug,
+		},
+		updated_at: Math.floor(new Date(item.updated_at ?? 0).getTime() / 1000),
+	} satisfies VideoTranslation;
+
+	const result = await tryCatch<void, Promise<VideoTranslation> | null>(
+		async () =>
+			(await typesense
+				.collections(TARGET_COLLECTION)
+				.documents()
+				.upsert(doc)) as VideoTranslation,
+		null,
+	)();
+
+	if (result) {
+		logger.info(`Item ${item.id} - ${translation.title} upserted.`, {
+			label: "sync-service",
+		});
+	} else {
+		logger.error(`Error upserting item ${item.id} - ${translation.title}.`, {
+			label: "sync-service",
+		});
+	}
+};
+
 async function ensureCollectionExists(): Promise<void> {
-	const exists = await typesense.collections(targetCollection).exists();
+	const exists = await typesense.collections(TARGET_COLLECTION).exists();
 	if (!exists) {
-		logger.info(`Collection ${targetCollection} does not exist. Creating...`, {
+		logger.info(`Collection ${TARGET_COLLECTION} does not exist. Creating...`, {
 			label: "sync-service",
 		});
 		await typesense.collections().create({
-			name: targetCollection,
+			name: TARGET_COLLECTION,
 			fields: [
 				{ name: ".*", type: "auto" },
 				{ name: "updated_at", type: "int32" },
@@ -36,7 +74,7 @@ async function ensureCollectionExists(): Promise<void> {
 			enable_nested_fields: true,
 			default_sorting_field: "updated_at",
 		});
-		logger.info(`Collection ${targetCollection} created.`, {
+		logger.info(`Collection ${TARGET_COLLECTION} created.`, {
 			label: "sync-service",
 		});
 	}
@@ -58,56 +96,37 @@ async function syncUpdatedItems(): Promise<void> {
 		},
 		where: {
 			status: "processed",
-			updated_at: {
-				gt: lastSyncTime,
-			},
+			updated_at: { gt: LAST_SYNC_TIME },
 		},
 	});
 
-	if (freshItems.length > 0) {
-		logger.info(`Found ${freshItems.length} item(s) to sync.`, {
-			label: "sync-service",
-		});
-
-		forEach(async (item) => {
-			for (const translation of item.video_translations) {
-				const doc = {
-					lang: translation.languages_code as VideoLang,
-					content: {
-						id: String(item.id),
-						keywords: translation.keywords,
-						title: translation.title,
-						slug: translation.slug,
-					},
-					updated_at: Math.floor(
-						new Date(item.updated_at ?? 0).getTime() / 1000,
-					),
-				} satisfies VideoTranslation;
-
-				try {
-					await typesense.collections(targetCollection).documents().upsert(doc);
-					logger.info(`Upserted item ${item.id}.`, {
-						label: "sync-service",
-					});
-				} catch (err) {
-					logger.error(
-						`Error upserting item ${item.id} - ${item.video_translations.map(
-							(t) => t.title,
-						)}:`,
-						err,
-						{ label: "sync-service" },
-					);
-				}
-			}
-		}, freshItems);
-
-		// Update last sync time after processing.
-		lastSyncTime = new Date();
-	} else {
+	if (freshItems.length === 0) {
 		logger.info("No new or updated items to sync.", {
 			label: "sync-service",
 		});
+		return;
 	}
+
+	logger.info(`Found ${freshItems.length} item(s) to sync.`, {
+		label: "sync-service",
+	});
+
+	// Flatten translations with their parent item.
+	const translationsWithItems = chain(
+		(item) =>
+			item.video_translations.map((translation) => ({ item, translation })),
+		freshItems,
+	);
+
+	// Process each translation concurrently.
+	await Promise.all(
+		translationsWithItems.map(({ item, translation }) =>
+			processTranslation(item, translation),
+		),
+	);
+
+	// Update the last sync time.
+	LAST_SYNC_TIME = new Date();
 }
 
 export async function pollAndSync(): Promise<void> {
