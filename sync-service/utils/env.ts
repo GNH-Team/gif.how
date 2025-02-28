@@ -12,7 +12,6 @@ interface EnvVarSchema<T> {
 
 // Define our overall configuration type.
 export interface ConfigType {
-	POLL_INTERVAL: number;
 	TYPESENSE_HOST: string;
 	TYPESENSE_PORT: number;
 	TYPESENSE_PROTOCOL: string;
@@ -22,11 +21,6 @@ export interface ConfigType {
 
 // Define the configuration schema.
 const schema: SchemaDefinition = {
-	POLL_INTERVAL: {
-		type: "number",
-		required: false,
-		defaultValue: 10000,
-	},
 	TYPESENSE_HOST: {
 		type: "string",
 		required: true,

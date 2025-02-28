@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "bun run index.ts",
-    "init": "bun prisma init --datasource-provider=mysql",
-    "sync": "bun prisma db pull && bun prisma generate",
+    "p:init": "bun prisma init --datasource-provider=mysql",
+    "p:sync": "bun prisma db pull && bun prisma generate",
     "prod": "bun build index.ts --target=node --minify --splitting --outdir=dist",
-    "copy": "cp ../.env .env.production"
+    "p:copy": "cp ../.env .env.production"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
+    "cron": "^4.1.0",
     "rambda": "^9.4.2",
     "typesense": "^2.0.2",
     "winston": "^3.17.0",

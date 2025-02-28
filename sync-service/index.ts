@@ -1,6 +1,7 @@
-import env from "./utils/env";
+import { CreateCollection } from "./job/createCollection.job";
+import { PollingService } from "./job/service";
+import { SyncUpdatedItems } from "./job/sync.job";
 import logger from "./utils/logger";
-import { pollAndSync } from "./utils/pollSync";
 import prisma from "./utils/prisma";
 
 async function main() {
@@ -9,11 +10,11 @@ async function main() {
 		label: "sync-service",
 	});
 
-	// Perform an initial sync.
-	await pollAndSync();
+	const jobs = [new SyncUpdatedItems(), new CreateCollection()];
 
-	// Set up the polling loop.
-	setInterval(pollAndSync, env.POLL_INTERVAL);
+	const pollingService = new PollingService(jobs);
+
+	pollingService.exec();
 }
 
 main().catch((err) => {
