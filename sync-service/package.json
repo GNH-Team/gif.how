@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun run index.ts",
+    "start": "bun run index.ts",
     "p:init": "bun prisma init --datasource-provider=mysql",
     "p:sync": "bun prisma db pull && bun prisma generate",
     "prod": "bun build index.ts --target=node --minify --splitting --outdir=dist",

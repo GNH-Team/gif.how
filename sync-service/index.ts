@@ -1,6 +1,6 @@
-import { CreateCollection } from "./job/createCollection.job";
-import { PollingService } from "./job/service";
-import { SyncUpdatedItems } from "./job/sync.job";
+import { CreateCollection } from "./jobs/createCollection.job";
+import { PollingService } from "./jobs/service";
+import { SyncUpdatedItems } from "./jobs/sync.job";
 import logger from "./utils/logger";
 import prisma from "./utils/prisma";
 
