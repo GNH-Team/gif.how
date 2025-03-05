@@ -5,6 +5,7 @@ import { PollJob } from "./service";
 import typesense from "../utils/typesense";
 import type { video, video_translations } from "@prisma/client";
 import type { Simplify } from "type-fest";
+import { randomUUIDv7 } from "bun";
 
 type VideoTranslation = Pick<
 	video_translations,
@@ -95,7 +96,7 @@ export class SyncUpdatedItems extends PollJob {
 		translation: VideoTranslation,
 	): ProcessedData {
 		const doc = {
-			id: String(item.id),
+			id: randomUUIDv7("hex"),
 			updated_at: Math.floor(new Date(item.updated_at ?? 0).getTime() / 1000),
 			...translation,
 		} satisfies ProcessedData;
@@ -122,6 +123,9 @@ export class SyncUpdatedItems extends PollJob {
 
 	private async upsertDocuments(docs: ProcessedData[]): Promise<void> {
 		const failedDocs: string[] = [];
+
+		console.log(`total docs: ${docs.length}`);
+		console.log(docs.map((doc) => doc.slug));
 		await Promise.all(
 			docs.map(async (doc) => {
 				const result = await tryCatch<void, Promise<ProcessedData> | null>(
