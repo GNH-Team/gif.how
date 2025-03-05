@@ -94,9 +94,6 @@ export class SyncUpdatedItems extends PollJob {
 		item: Omit<UnprocessedData, "video_translations">,
 		translation: VideoTranslation,
 	): ProcessedData {
-		logger.info(`Process ${item.id} with ${translation.languages_code}`, {
-			label: "sync-service",
-		});
 		const doc = {
 			id: String(item.id),
 			updated_at: Math.floor(new Date(item.updated_at ?? 0).getTime() / 1000),
