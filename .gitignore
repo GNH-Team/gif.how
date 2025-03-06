@@ -1,4 +1,5 @@
 .env
 typesense/
 data
-mariadb-init
+mariadb-init/*
+!mariadb-init/.gitkeep
