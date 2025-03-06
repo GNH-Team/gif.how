@@ -3,23 +3,13 @@ import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import { PollJob } from "./service";
 import typesense from "../utils/typesense";
-import type { video, video_translations } from "@prisma/client";
-import type { Simplify } from "type-fest";
-import { randomUUIDv7 } from "bun";
+import type { video_translations } from "@prisma/client";
+import type { OverrideProperties } from "type-fest";
 
 type VideoTranslation = Pick<
 	video_translations,
-	"languages_code" | "keywords" | "title" | "slug"
+	"languages_code" | "keywords" | "title" | "slug" | "id"
 >;
-
-type UnprocessedData = Pick<video, "id" | "updated_at"> & {
-	video_translations: VideoTranslation[];
-};
-
-type ProcessedData = Simplify<VideoTranslation> & {
-	id: string;
-	updated_at: number;
-};
 
 export class SyncUpdatedItems extends PollJob {
 	private lastSyncTime: Date = new Date(0);
@@ -27,22 +17,25 @@ export class SyncUpdatedItems extends PollJob {
 	private maxBatchSize = 1000; // Maximum number of items to sync in a single run.
 
 	constructor() {
-		super("sync-updated-items", "*/10 * * * * *");
+		super("sync-updated-items", "*/25 * * * * *");
 	}
 
 	async run(): Promise<void> {
-		const staleItems: UnprocessedData[] = await prisma.video.findMany({
+		const staleItems = await prisma.video.findMany({
 			select: {
-				id: true,
-				updated_at: true,
 				video_translations: {
 					select: {
+						id: true,
 						languages_code: true,
 						keywords: true,
 						title: true,
 						slug: true,
 					},
 				},
+			},
+			orderBy: {
+				// Prioritize items that have not been synced recently.
+				updated_at: "asc",
 			},
 			take: this.maxBatchSize,
 			where: {
@@ -63,81 +56,54 @@ export class SyncUpdatedItems extends PollJob {
 			label: "sync-service",
 		});
 
+		// Extract data from items. For example: 1 video that contains 3 translations will be transformed into 3 items.
+		// Then change ID type from number to string.
 		const docs = pipe<
-			[UnprocessedData[]],
-			Array<{
-				item: Simplify<Omit<UnprocessedData, "video_translations">>;
-				translation: VideoTranslation;
-			}>,
-			ProcessedData[]
+			[typeof staleItems],
+			VideoTranslation[],
+			OverrideProperties<VideoTranslation, { id: string }>[]
 		>(
-			chain((item) =>
-				item.video_translations.map((translation) => ({
-					item: { id: item.id, updated_at: item.updated_at },
-					translation,
-				})),
-			),
-			map(({ item, translation }) =>
-				this.processTranslation(item, translation),
-			),
+			chain(({ video_translations }) => video_translations),
+			map((item) => ({
+				...item,
+				id: String(item.id),
+			})),
 		)(staleItems);
 
 		await this.upsertDocuments(docs);
-
-		// Update the last sync time.
 		this.lastSyncTime = new Date();
-
-		// Update last sync time in the database.
-		this.updateLastSyncTime(staleItems.map((item) => item.id));
 	}
 
-	private processTranslation(
-		item: Omit<UnprocessedData, "video_translations">,
-		translation: VideoTranslation,
-	): ProcessedData {
-		const doc = {
-			id: randomUUIDv7("hex"),
-			updated_at: Math.floor(new Date(item.updated_at ?? 0).getTime() / 1000),
-			...translation,
-		} satisfies ProcessedData;
-
-		return doc;
-	}
-
-	private async updateLastSyncTime(
-		items: UnprocessedData["id"][],
+	private async upsertDocuments(
+		docs: OverrideProperties<VideoTranslation, { id: string }>[],
 	): Promise<void> {
-		await prisma.video
-			.updateMany({
-				where: {
-					id: { in: items },
-				},
-				data: { updated_at: this.lastSyncTime },
-			})
-			.then(() => {
-				logger.info("Last sync time updated in the database.", {
-					label: "sync-service",
-				});
-			});
-	}
-
-	private async upsertDocuments(docs: ProcessedData[]): Promise<void> {
 		const failedDocs: string[] = [];
 
-		console.log(`total docs: ${docs.length}`);
-		console.log(docs.map((doc) => doc.slug));
+		logger.info(`Total docs in queue: ${docs.length}`, {
+			label: "sync-service",
+		});
+
+		const health = await typesense.health.retrieve();
+
+		if (health.ok) {
+			logger.error("Typesense is not ready.", {
+				label: "sync-service",
+			});
+			return;
+		}
+
 		await Promise.all(
 			docs.map(async (doc) => {
-				const result = await tryCatch<void, Promise<ProcessedData> | null>(
+				const result = await tryCatch<void, Promise<VideoTranslation> | null>(
 					async () =>
 						(await typesense
 							.collections(this.targetCollection)
 							.documents()
-							.upsert(doc)) as ProcessedData,
+							.upsert(doc)) as VideoTranslation,
 					null,
 				)();
 
-				if (!result) failedDocs.push(doc.id);
+				if (!result) failedDocs.push(String(doc.id));
 			}),
 		);
 		if (failedDocs.length > 0) {
