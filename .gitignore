@@ -1,2 +1,4 @@
 .env
 typesense/
+data
+mariadb-init

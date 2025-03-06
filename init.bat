@@ -67,7 +67,8 @@ if exist "prisma" (
 )
 
 echo [INFO] Running: bun p:sync
-call bun p:sync
+start /wait cmd /c "bun p:sync"
+
 
 if errorlevel 1 (
     echo [ERROR] bun p:sync failed.
@@ -91,7 +92,7 @@ if errorlevel 1 (
 cd ..
 
 echo [INFO] Build sync-service image...
-docker compose build sync-service
+docker compose build
 
 if errorlevel 1 (
     echo [ERROR] Failed to build sync-service image.
@@ -100,16 +101,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [INFO] Script completed successfully. Do you want to shut down the containers? (Y/N)
-set /p SHUTDOWN=
-
-if /i "%SHUTDOWN%"=="Y" (
-    echo [INFO] Shutting down docker compose services...
-    docker compose down
-    echo [INFO] All services stopped.
-) else (
-    echo [INFO] Services will continue running.
-)
+docker compose down
 
 endlocal
 pause
