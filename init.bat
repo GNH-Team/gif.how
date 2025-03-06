@@ -31,13 +31,6 @@ timeout /t 5 /nobreak
 echo [INFO] Changing directory to sync-service...
 cd "./sync-service"
 
-if errorlevel 1 (
-    echo [ERROR] Failed to change directory to sync-service.
-    echo [INFO] Shutting down containers...
-    docker compose down
-    exit /b 1
-)
-
 echo [INFO] Running bun commands...
 echo [INFO] Running: bun install
 call bun install
@@ -66,29 +59,11 @@ if exist "prisma" (
     )
 )
 
-echo [INFO] Running: bun p:sync
-start /wait cmd /c "bun p:sync"
-
-
-if errorlevel 1 (
-    echo [ERROR] bun p:sync failed.
-    echo [INFO] Shutting down containers...
-    cd ..
-    docker compose down
-    exit /b 1
-)
-
 echo [INFO] Running: bun p:copy
 call bun p:copy
 
-if errorlevel 1 (
-    echo [ERROR] bun p:copy failed.
-    echo [INFO] Shutting down containers...
-    cd ..
-    docker compose down
-    exit /b 1
-)
-
+echo [INFO] Running: bun p:sync
+start /wait cmd /c "bun p:sync"
 cd ..
 
 echo [INFO] Build sync-service image...
