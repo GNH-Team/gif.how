@@ -22,6 +22,7 @@ services:
       FILES_MIME_TYPE_ALLOW_LIST: ${FILES_MIME_TYPE_ALLOW_LIST}
     volumes:
       - ./directus/extensions:/directus/extensions
+      - ./directus/uploads:/directus/uploads
     networks:
       - hownet
 
@@ -33,16 +34,17 @@ services:
       - "127.0.0.1:3306:3306"
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MARIADB_DATABASE: ${DB_DATABASE}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 4s
       retries: 3
     volumes:
-      - db-data:/var/lib/mysql
+      - db_data:/var/lib/mysql
+      - ./mariadb-init:/docker-entrypoint-initdb.d:ro
     networks:
       - hownet
 
@@ -163,5 +165,4 @@ networks:
     driver: bridge
 
 volumes:
-  db-data:
-  loki:
+  db_data:
