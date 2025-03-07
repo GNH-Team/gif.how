@@ -1,39 +1,41 @@
 import { chain, map, pipe, tryCatch } from "rambda";
 import type { OverrideProperties } from "type-fest";
-import type { synctime, video_translations } from "@prisma/client";
+import type { sync_service, video_translations } from "@prisma/client";
 
 import { PollJob } from "./service";
 
 import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import typesense from "../utils/typesense";
-import config from "../utils/env";
+
+const JOB_NAME = "sync-updated-items";
 
 type VideoTranslation = Pick<
 	video_translations,
 	"languages_code" | "keywords" | "title" | "slug" | "id"
 >;
-
-process.env.TZ = config.TZ;
-
 export class SyncUpdatedItems extends PollJob {
-	private sync: synctime = {
+	private sync: sync_service = {
 		id: 1, // This is a placeholder value. It will be updated after the first run.
 		failed_items: 0,
 		synced_items: 0, // Synced items since last batch.
 		batch_size: 1000,
-		last_synced_time: new Date(),
+		last_sync_time: new Date(),
 	};
 	private targetCollection = "videos";
 
 	constructor() {
-		super("sync-updated-items", "*/25 * * * * *");
+		super(JOB_NAME, "*/25 * * * * *");
 	}
 
 	async once(): Promise<void> {
-		const syncTime = await prisma.synctime.findFirst({});
+		const syncTime = await prisma.sync_service.findFirst({});
 
-		this.sync = syncTime ?? this.sync;
+		if (syncTime === null) {
+			await prisma.sync_service.create({
+				data: this.sync,
+			});
+		}
 	}
 
 	async run(): Promise<void> {
@@ -57,20 +59,20 @@ export class SyncUpdatedItems extends PollJob {
 			where: {
 				status: "processed",
 				// Only fetch items that have been updated since the last sync.
-				// biome-ignore lint/style/noNonNullAssertion: <It's safe to assume that last_synced_time is not null.>
-				updated_at: { gt: this.sync.last_synced_time! },
+				// biome-ignore lint/style/noNonNullAssertion: <It's safe to assume that last_sync_time is not null.>
+				updated_at: { gt: this.sync.last_sync_time! },
 			},
 		});
 
 		if (staleItems.length === 0) {
 			logger.info("No new or updated items to sync.", {
-				label: "sync-service",
+				label: JOB_NAME,
 			});
 			return;
 		}
 
 		logger.info(`Found ${staleItems.length} item(s) to sync.`, {
-			label: "sync-service",
+			label: JOB_NAME,
 		});
 
 		// Extract data from items. For example: 1 video that contains 3 translations will be transformed into 3 items.
@@ -97,14 +99,14 @@ export class SyncUpdatedItems extends PollJob {
 		let succeededDocs = 0;
 
 		logger.info(`Total docs in queue: ${docs.length}`, {
-			label: "sync-service",
+			label: JOB_NAME,
 		});
 
 		const health = await typesense.health.retrieve();
 
 		if (!health.ok) {
 			logger.error("Typesense is not ready.", {
-				label: "sync-service",
+				label: JOB_NAME,
 			});
 			return;
 		}
@@ -128,7 +130,7 @@ export class SyncUpdatedItems extends PollJob {
 		);
 		if (failedDocs > 0) {
 			logger.error(`${failedDocs} documents failed to upsert`, {
-				label: "sync-service",
+				label: JOB_NAME,
 			});
 		}
 
@@ -138,13 +140,14 @@ export class SyncUpdatedItems extends PollJob {
 	}
 
 	private async updateSyncTime(): Promise<void> {
-		const result = await prisma.synctime.update({
+		const data = {
+			failed_items: this.sync.failed_items,
+			synced_items: this.sync.synced_items,
+			last_sync_time: new Date(),
+		};
+		const result = await prisma.sync_service.update({
 			where: { id: this.sync.id },
-			data: {
-				last_synced_time: new Date(),
-				failed_items: this.sync.failed_items,
-				synced_items: this.sync.synced_items,
-			},
+			data,
 		});
 		this.sync = result;
 	}

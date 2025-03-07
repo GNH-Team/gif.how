@@ -38,12 +38,13 @@ services:
       MARIADB_DATABASE: ${DB_DATABASE}
       MARIADB_USER: ${DB_USER}
       MARIADB_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TZ}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 4s
       retries: 3
     volumes:
-      - db_data:/var/lib/mysql
+      - storage:/var/lib/mysql
       - ./mariadb-init:/docker-entrypoint-initdb.d:ro
     networks:
       - hownet
@@ -145,6 +146,8 @@ services:
     build:
       context: ./sync-service
       dockerfile: Dockerfile
+    environment:
+      - TZ=${TZ}
     volumes:
       - ./logs:/logs
     depends_on:
@@ -165,4 +168,4 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
+  storage:
