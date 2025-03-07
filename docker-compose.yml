@@ -9,17 +9,20 @@ services:
         condition: service_healthy
     environment:
       PUBLIC_URL: ${PUBLIC_URL}
-      DB_CLIENT: ${DB_CLIENT}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_CLIENT: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
       DB_DATABASE: ${DB_DATABASE}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       SECRET: ${SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      FILES_MAX_UPLOAD_SIZE: ${FILES_MAX_UPLOAD_SIZE}
-      FILES_MIME_TYPE_ALLOW_LIST: ${FILES_MIME_TYPE_ALLOW_LIST}
+      FILES_MAX_UPLOAD_SIZE: 250mb
+      FILES_MIME_TYPE_ALLOW_LIST: array:video/mp4,video/webm,image/gif,image/png,image/jpeg,image/webp
+
+      CORS_ENABLED: true
+      CORS_ORIGIN: ${CORS_ORIGIN}
     volumes:
       - ./directus/extensions:/directus/extensions
       - ./directus/uploads:/directus/uploads
@@ -76,7 +79,7 @@ services:
     image: grafana/loki:latest
     container_name: gifhow-loki
     ports:
-      - "3100:3100"
+      - "10005:3100"
     command: -config.file=/etc/loki/config.yaml
     volumes:
       - ./logs/settings/loki:/etc/loki
@@ -133,9 +136,8 @@ services:
     ports:
       - "10007:8108"
     environment:
-      TYPESENSE_DATA_DIR: ${TYPESENSE_DATA_DIR}
+      TYPESENSE_DATA_DIR: /data
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
-      TYPESENSE_ENABLE_CORS: ${TYPESENSE_ENABLE_CORS}
     volumes:
       - ./typesense:/data
     networks:
