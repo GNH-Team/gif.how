@@ -1,5 +1,6 @@
-import logger from "../utils/logger";
 import { PollJob } from "./service";
+
+import logger from "../utils/logger";
 import typesense from "../utils/typesense";
 
 export class CreateCollection extends PollJob {

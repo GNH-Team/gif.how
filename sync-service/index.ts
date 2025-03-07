@@ -1,6 +1,7 @@
 import { CreateCollection } from "./jobs/createCollection.job";
 import { PollingService } from "./jobs/service";
 import { SyncUpdatedItems } from "./jobs/sync.job";
+
 import logger from "./utils/logger";
 import prisma from "./utils/prisma";
 

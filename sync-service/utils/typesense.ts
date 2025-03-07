@@ -1,4 +1,5 @@
 import Typesense from "typesense";
+
 import env from "./env";
 
 const typesense = new Typesense.Client({

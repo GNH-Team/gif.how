@@ -8,6 +8,7 @@
         "@sinclair/typebox": "^0.34.28",
         "ajv": "^8.17.1",
         "cron": "^4.1.0",
+        "luxon": "^3.5.0",
         "rambda": "^9.4.2",
         "typesense": "^2.0.2",
         "winston": "^3.17.0",
