@@ -1,5 +1,6 @@
-import logger from "../utils/logger";
 import { CronJob, sendAt } from "cron";
+
+import logger from "../utils/logger";
 
 export abstract class PollJob {
 	public id: string;

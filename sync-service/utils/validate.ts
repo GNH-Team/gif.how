@@ -1,6 +1,11 @@
 import Ajv from "ajv";
 
-const ajv = new Ajv();
+const ajv = new Ajv({
+	useDefaults: true,
+	coerceTypes: true,
+	removeAdditional: true,
+	allErrors: true,
+});
 
 // Custom keyword: uniqueObjectValues
 ajv.addKeyword({

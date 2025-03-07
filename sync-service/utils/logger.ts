@@ -2,6 +2,8 @@ import winston from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 import LokiTransport from "winston-loki";
 
+import config from "./env";
+
 // Create a Loki transport instance to send logs to Grafana Loki.
 const lokiTransport = new LokiTransport({
 	host: process.env.LOKI_URL || "http://localhost:3100",
@@ -12,7 +14,14 @@ const lokiTransport = new LokiTransport({
 const logger = winston.createLogger({
 	level: process.env.LOG_LEVEL || "info",
 	format: winston.format.combine(
-		winston.format.timestamp(),
+		winston.format.timestamp({
+			// Make sure its either locale or Asia/Ho_Chi_Minh
+			format() {
+				return new Date().toLocaleString("vi-VN", {
+					timeZone: config.TZ,
+				});
+			},
+		}),
 		winston.format.json(),
 	),
 	transports: [

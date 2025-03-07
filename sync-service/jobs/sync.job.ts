@@ -1,15 +1,20 @@
 import { chain, map, pipe, tryCatch } from "rambda";
+import type { OverrideProperties } from "type-fest";
+import type { synctime, video_translations } from "@prisma/client";
+
+import { PollJob } from "./service";
+
 import logger from "../utils/logger";
 import prisma from "../utils/prisma";
-import { PollJob } from "./service";
 import typesense from "../utils/typesense";
-import type { synctime, video_translations } from "@prisma/client";
-import type { OverrideProperties } from "type-fest";
+import config from "../utils/env";
 
 type VideoTranslation = Pick<
 	video_translations,
 	"languages_code" | "keywords" | "title" | "slug" | "id"
 >;
+
+process.env.TZ = config.TZ;
 
 export class SyncUpdatedItems extends PollJob {
 	private sync: synctime = {
@@ -52,7 +57,8 @@ export class SyncUpdatedItems extends PollJob {
 			where: {
 				status: "processed",
 				// Only fetch items that have been updated since the last sync.
-				updated_at: { gt: this.sync.last_synced_time ?? new Date() },
+				// biome-ignore lint/style/noNonNullAssertion: <It's safe to assume that last_synced_time is not null.>
+				updated_at: { gt: this.sync.last_synced_time! },
 			},
 		});
 

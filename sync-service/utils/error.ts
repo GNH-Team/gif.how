@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+
 import { ErrorCatalog, ErrorNames, type ErrorCatalogIndex } from "./errorbank";
 import ajv from "./validate";
 
