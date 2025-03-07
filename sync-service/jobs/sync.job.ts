@@ -3,40 +3,40 @@ import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import { PollJob } from "./service";
 import typesense from "../utils/typesense";
-import type { video, video_translations } from "@prisma/client";
-import type { Simplify } from "type-fest";
-import { randomUUIDv7 } from "bun";
+import type { synctime, video_translations } from "@prisma/client";
+import type { OverrideProperties } from "type-fest";
 
 type VideoTranslation = Pick<
 	video_translations,
-	"languages_code" | "keywords" | "title" | "slug"
+	"languages_code" | "keywords" | "title" | "slug" | "id"
 >;
 
-type UnprocessedData = Pick<video, "id" | "updated_at"> & {
-	video_translations: VideoTranslation[];
-};
-
-type ProcessedData = Simplify<VideoTranslation> & {
-	id: string;
-	updated_at: number;
-};
-
 export class SyncUpdatedItems extends PollJob {
-	private lastSyncTime: Date = new Date(0);
+	private sync: synctime = {
+		id: 1, // This is a placeholder value. It will be updated after the first run.
+		failed_items: 0,
+		synced_items: 0, // Synced items since last batch.
+		batch_size: 1000,
+		last_synced_time: new Date(),
+	};
 	private targetCollection = "videos";
-	private maxBatchSize = 1000; // Maximum number of items to sync in a single run.
 
 	constructor() {
-		super("sync-updated-items", "*/10 * * * * *");
+		super("sync-updated-items", "*/25 * * * * *");
+	}
+
+	async once(): Promise<void> {
+		const syncTime = await prisma.synctime.findFirst({});
+
+		this.sync = syncTime ?? this.sync;
 	}
 
 	async run(): Promise<void> {
-		const staleItems: UnprocessedData[] = await prisma.video.findMany({
+		const staleItems = await prisma.video.findMany({
 			select: {
-				id: true,
-				updated_at: true,
 				video_translations: {
 					select: {
+						id: true,
 						languages_code: true,
 						keywords: true,
 						title: true,
@@ -44,11 +44,15 @@ export class SyncUpdatedItems extends PollJob {
 					},
 				},
 			},
-			take: this.maxBatchSize,
+			orderBy: {
+				// Prioritize items that have not been synced recently.
+				updated_at: "asc",
+			},
+			take: this.sync.batch_size ?? 1000,
 			where: {
 				status: "processed",
 				// Only fetch items that have been updated since the last sync.
-				updated_at: { gt: this.lastSyncTime },
+				updated_at: { gt: this.sync.last_synced_time ?? new Date() },
 			},
 		});
 
@@ -63,87 +67,79 @@ export class SyncUpdatedItems extends PollJob {
 			label: "sync-service",
 		});
 
+		// Extract data from items. For example: 1 video that contains 3 translations will be transformed into 3 items.
+		// Then change ID type from number to string.
 		const docs = pipe<
-			[UnprocessedData[]],
-			Array<{
-				item: Simplify<Omit<UnprocessedData, "video_translations">>;
-				translation: VideoTranslation;
-			}>,
-			ProcessedData[]
+			[typeof staleItems],
+			VideoTranslation[],
+			OverrideProperties<VideoTranslation, { id: string }>[]
 		>(
-			chain((item) =>
-				item.video_translations.map((translation) => ({
-					item: { id: item.id, updated_at: item.updated_at },
-					translation,
-				})),
-			),
-			map(({ item, translation }) =>
-				this.processTranslation(item, translation),
-			),
+			chain(({ video_translations }) => video_translations),
+			map((item) => ({
+				...item,
+				id: String(item.id),
+			})),
 		)(staleItems);
 
 		await this.upsertDocuments(docs);
-
-		// Update the last sync time.
-		this.lastSyncTime = new Date();
-
-		// Update last sync time in the database.
-		this.updateLastSyncTime(staleItems.map((item) => item.id));
 	}
 
-	private processTranslation(
-		item: Omit<UnprocessedData, "video_translations">,
-		translation: VideoTranslation,
-	): ProcessedData {
-		const doc = {
-			id: randomUUIDv7("hex"),
-			updated_at: Math.floor(new Date(item.updated_at ?? 0).getTime() / 1000),
-			...translation,
-		} satisfies ProcessedData;
-
-		return doc;
-	}
-
-	private async updateLastSyncTime(
-		items: UnprocessedData["id"][],
+	private async upsertDocuments(
+		docs: OverrideProperties<VideoTranslation, { id: string }>[],
 	): Promise<void> {
-		await prisma.video
-			.updateMany({
-				where: {
-					id: { in: items },
-				},
-				data: { updated_at: this.lastSyncTime },
-			})
-			.then(() => {
-				logger.info("Last sync time updated in the database.", {
-					label: "sync-service",
-				});
+		let failedDocs = 0;
+		let succeededDocs = 0;
+
+		logger.info(`Total docs in queue: ${docs.length}`, {
+			label: "sync-service",
+		});
+
+		const health = await typesense.health.retrieve();
+
+		if (!health.ok) {
+			logger.error("Typesense is not ready.", {
+				label: "sync-service",
 			});
-	}
+			return;
+		}
 
-	private async upsertDocuments(docs: ProcessedData[]): Promise<void> {
-		const failedDocs: string[] = [];
-
-		console.log(`total docs: ${docs.length}`);
-		console.log(docs.map((doc) => doc.slug));
 		await Promise.all(
 			docs.map(async (doc) => {
-				const result = await tryCatch<void, Promise<ProcessedData> | null>(
-					async () =>
-						(await typesense
-							.collections(this.targetCollection)
-							.documents()
-							.upsert(doc)) as ProcessedData,
-					null,
-				)();
-
-				if (!result) failedDocs.push(doc.id);
+				try {
+					await tryCatch<void, Promise<VideoTranslation> | null>(
+						async () =>
+							(await typesense
+								.collections(this.targetCollection)
+								.documents()
+								.upsert(doc)) as VideoTranslation,
+						null,
+					)();
+					succeededDocs++;
+				} catch {
+					failedDocs++;
+				}
 			}),
 		);
-		if (failedDocs.length > 0) {
-			logger.error(`Failed to upsert documents: ${failedDocs.join(", ")}`, {
+		if (failedDocs > 0) {
+			logger.error(`${failedDocs} documents failed to upsert`, {
 				label: "sync-service",
 			});
 		}
+
+		this.sync.failed_items = failedDocs;
+		this.sync.synced_items = succeededDocs;
+		await this.updateSyncTime();
+	}
+
+	private async updateSyncTime(): Promise<void> {
+		const result = await prisma.synctime.update({
+			where: { id: this.sync.id },
+			data: {
+				last_synced_time: new Date(),
+				failed_items: this.sync.failed_items,
+				synced_items: this.sync.synced_items,
+			},
+		});
+		this.sync = result;
 	}
 }

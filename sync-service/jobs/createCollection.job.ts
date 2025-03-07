@@ -31,12 +31,8 @@ export class CreateCollection extends PollJob {
 
 		await typesense.collections().create({
 			name: this.targetCollection,
-			fields: [
-				{ name: ".*", type: "auto" },
-				{ name: "updated_at", type: "int32" },
-			],
+			fields: [{ name: ".*", type: "auto" }],
 			enable_nested_fields: true,
-			default_sorting_field: "updated_at",
 		});
 		logger.info(`Collection ${this.targetCollection} created.`, {
 			label: "sync-service",

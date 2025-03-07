@@ -3,3 +3,4 @@ typesense/
 data
 mariadb-init/*
 !mariadb-init/.gitkeep
+directus/uploads/*
