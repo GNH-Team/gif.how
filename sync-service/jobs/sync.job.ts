@@ -3,7 +3,7 @@ import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import { PollJob } from "./service";
 import typesense from "../utils/typesense";
-import type { video_translations } from "@prisma/client";
+import type { synctime, video_translations } from "@prisma/client";
 import type { OverrideProperties } from "type-fest";
 
 type VideoTranslation = Pick<
@@ -12,12 +12,23 @@ type VideoTranslation = Pick<
 >;
 
 export class SyncUpdatedItems extends PollJob {
-	private lastSyncTime: Date = new Date(0);
+	private sync: synctime = {
+		id: 1, // This is a placeholder value. It will be updated after the first run.
+		failed_items: 0,
+		synced_items: 0, // Synced items since last batch.
+		batch_size: 1000,
+		last_synced_time: new Date(),
+	};
 	private targetCollection = "videos";
-	private maxBatchSize = 1000; // Maximum number of items to sync in a single run.
 
 	constructor() {
 		super("sync-updated-items", "*/25 * * * * *");
+	}
+
+	async once(): Promise<void> {
+		const syncTime = await prisma.synctime.findFirst({});
+
+		this.sync = syncTime ?? this.sync;
 	}
 
 	async run(): Promise<void> {
@@ -37,11 +48,11 @@ export class SyncUpdatedItems extends PollJob {
 				// Prioritize items that have not been synced recently.
 				updated_at: "asc",
 			},
-			take: this.maxBatchSize,
+			take: this.sync.batch_size ?? 1000,
 			where: {
 				status: "processed",
 				// Only fetch items that have been updated since the last sync.
-				updated_at: { gt: this.lastSyncTime },
+				updated_at: { gt: this.sync.last_synced_time ?? new Date() },
 			},
 		});
 
@@ -71,13 +82,13 @@ export class SyncUpdatedItems extends PollJob {
 		)(staleItems);
 
 		await this.upsertDocuments(docs);
-		this.lastSyncTime = new Date();
 	}
 
 	private async upsertDocuments(
 		docs: OverrideProperties<VideoTranslation, { id: string }>[],
 	): Promise<void> {
-		const failedDocs: string[] = [];
+		let failedDocs = 0;
+		let succeededDocs = 0;
 
 		logger.info(`Total docs in queue: ${docs.length}`, {
 			label: "sync-service",
@@ -85,7 +96,7 @@ export class SyncUpdatedItems extends PollJob {
 
 		const health = await typesense.health.retrieve();
 
-		if (health.ok) {
+		if (!health.ok) {
 			logger.error("Typesense is not ready.", {
 				label: "sync-service",
 			});
@@ -94,22 +105,41 @@ export class SyncUpdatedItems extends PollJob {
 
 		await Promise.all(
 			docs.map(async (doc) => {
-				const result = await tryCatch<void, Promise<VideoTranslation> | null>(
-					async () =>
-						(await typesense
-							.collections(this.targetCollection)
-							.documents()
-							.upsert(doc)) as VideoTranslation,
-					null,
-				)();
-
-				if (!result) failedDocs.push(String(doc.id));
+				try {
+					await tryCatch<void, Promise<VideoTranslation> | null>(
+						async () =>
+							(await typesense
+								.collections(this.targetCollection)
+								.documents()
+								.upsert(doc)) as VideoTranslation,
+						null,
+					)();
+					succeededDocs++;
+				} catch {
+					failedDocs++;
+				}
 			}),
 		);
-		if (failedDocs.length > 0) {
-			logger.error(`Failed to upsert documents: ${failedDocs.join(", ")}`, {
+		if (failedDocs > 0) {
+			logger.error(`${failedDocs} documents failed to upsert`, {
 				label: "sync-service",
 			});
 		}
+
+		this.sync.failed_items = failedDocs;
+		this.sync.synced_items = succeededDocs;
+		await this.updateSyncTime();
+	}
+
+	private async updateSyncTime(): Promise<void> {
+		const result = await prisma.synctime.update({
+			where: { id: this.sync.id },
+			data: {
+				last_synced_time: new Date(),
+				failed_items: this.sync.failed_items,
+				synced_items: this.sync.synced_items,
+			},
+		});
+		this.sync = result;
 	}
 }
