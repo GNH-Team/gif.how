@@ -7,6 +7,8 @@ import { PollJob } from "./service";
 import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import typesense from "../utils/typesense";
+import { DateTime } from "luxon";
+import config from "../utils/env";
 
 const JOB_NAME = "sync-updated-items";
 
@@ -20,7 +22,7 @@ export class SyncUpdatedItems extends PollJob {
 		failed_items: 0,
 		synced_items: 0, // Synced items since last batch.
 		batch_size: 1000,
-		last_sync_time: new Date(),
+		last_sync_time: new Date(0),
 	};
 	private targetCollection = "videos";
 
@@ -140,10 +142,18 @@ export class SyncUpdatedItems extends PollJob {
 	}
 
 	private async updateSyncTime(): Promise<void> {
+		// ! This might not be the best way to handle timezone conversion.
+		const offsetHours = config.TZ === "UTC" ? 0 : 7;
+
+		const last_sync_time = DateTime.now()
+			.setZone(config.TZ)
+			.plus({ hours: offsetHours })
+			.toJSDate();
+
 		const data = {
 			failed_items: this.sync.failed_items,
 			synced_items: this.sync.synced_items,
-			last_sync_time: new Date(),
+			last_sync_time,
 		};
 		const result = await prisma.sync_service.update({
 			where: { id: this.sync.id },
