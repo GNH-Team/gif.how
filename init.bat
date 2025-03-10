@@ -55,7 +55,15 @@ echo [INFO] Running: bun p:copy
 call bun p:copy
 
 echo [INFO] Running: bun p:sync
-start /wait cmd /c "bun p:sync"
+call bun p:sync
+if errorlevel 1 (
+    echo [ERROR] bun p:sync failed.
+    echo [INFO] Shutting down containers...
+    cd ..
+    docker compose down
+    exit /b 1
+)
+
 cd ..
 
 echo [INFO] Build sync-service image...

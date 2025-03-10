@@ -5,14 +5,16 @@ import ajv from "./validate";
 
 // Define our configuration schema using TypeBox
 const ConfigSchema = Type.Object({
-	TYPESENSE_HOST: Type.String(),
-	TYPESENSE_PORT: Type.Number({ default: 8108 }),
-	TYPESENSE_PROTOCOL: Type.String({ default: "http" }),
-	TYPESENSE_API_KEY: Type.String(),
-	LOKI_URL: Type.String(),
-	LOG_LEVEL: Type.String({ default: "info" }),
-	TZ: Type.String({ default: "Asia/Ho_Chi_Minh" }),
-	NODE_ENV: Type.String({ default: "development" }),
+	TYPESENSE_HOST: Type.Optional(Type.String({ default: "localhost" })),
+	TYPESENSE_PORT: Type.Optional(Type.Number({ default: 8108 })),
+	TYPESENSE_PROTOCOL: Type.Optional(Type.String({ default: "http" })),
+	LOKI_URL: Type.Optional(Type.String({ default: "http://localhost:3100" })),
+	LOG_LEVEL: Type.Optional(Type.String({ default: "info" })),
+	TZ: Type.Optional(Type.String({ default: "UTC" })),
+	NODE_ENV: Type.Optional(Type.String({ default: "development" })),
+
+	TYPESENSE_API_KEY: Type.String(), // Required
+	DATABASE_URL: Type.String() //Required
 });
 
 // Extract the type from the schema
@@ -39,7 +41,7 @@ export class Config {
 		const valid = validate(envConfig);
 
 		if (!valid) {
-			logger.error("Configuration validation failed", {
+			console.error("Configuration validation failed", {
 				errors: validate.errors,
 			});
 			throw new Error("Configuration validation failed");
@@ -60,6 +62,10 @@ export class Config {
 // Create a singleton instance of the configuration
 const configInstance = new Config();
 
+
 // Export the strongly typed configuration
 export const config: ConfigType = configInstance.getAll();
+
+console.log(config)
+
 export default config;
