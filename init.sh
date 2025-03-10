@@ -50,13 +50,33 @@ if [ -d "prisma" ]; then
     echo "[INFO] Prisma directory already exists, skipping bun p:init..."
 else
     echo "[INFO] Running: bun p:init"
-    bun p:init
+    bun prisma init --datasource-provider=mysql --url=$(grep '^DATABASE_URL=' .env | cut -d '=' -f2- | sed 's/@mariadb/@localhost/')
+
     if [ $? -ne 0 ]; then
         echo "[ERROR] bun p:init failed."
         echo "[INFO] Shutting down containers..."
         cd ..
         docker compose down
         exit 1
+    fi
+
+
+
+    # Set the schema file name (adjust path if needed)
+    schema_file_name="prisma/schema.prisma"
+
+    # Check if binaryTargets is already present in the prisma schema.
+    if ! grep -q "binaryTargets" "$schema_file_name"; then
+       # Insert binaryTargets only in the generator client block, with a tab for indentation
+        sed -i '/^generator client {/,/^}/ {/provider =/a\
+            binaryTargets =["native","debian-openssl-1.1.x"] }' "$schema_file_name"
+        if [ $? -ne 0 ]; then
+            echo "[ERROR] Failed to update binaryTargets in schema file."
+            echo "[INFO] Shutting down containers..."
+            exit 1
+        fi
+            else
+        echo "[INFO] binaryTargets already present in the schema, skipping insertion."
     fi
 fi
 
@@ -75,7 +95,16 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "[INFO] Shutting down containers..."
-docker compose down
+echo "[INFO] Everything completed successfully."
 
-echo "[INFO] Init process completed successfully."
+# Prompt the user to start containers
+read -p "[INFO] Would you like to start containers? (y/n): " user_choice
+if [[ "$user_choice" == "y" || "$user_choice" == "Y" ]]; then
+    echo "[INFO] Starting containers..."
+    docker compose up -d
+else
+    echo "[INFO] Shutting down containers..."
+    docker compose down
+fi
+
+echo "[INFO] Process completed successfully."

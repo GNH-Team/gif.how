@@ -155,9 +155,10 @@ export class SyncUpdatedItems extends PollJob {
 			synced_items: this.sync.synced_items,
 			last_sync_time,
 		};
-		const result = await prisma.sync_service.update({
+		const result = await prisma.sync_service.upsert({
 			where: { id: this.sync.id },
-			data,
+			create: data,
+			update: data,
 		});
 		this.sync = result;
 	}
