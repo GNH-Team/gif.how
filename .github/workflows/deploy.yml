@@ -43,25 +43,26 @@ jobs:
         run: |
           # Create .env file from GitHub secrets
           touch .env
+          echo "# * DIRECTUS" >> .env
           echo "PUBLIC_URL=${{ secrets.PUBLIC_URL }}" >> .env
           echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
           echo "DB_USER=${{ secrets.DB_USER }}" >> .env
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-
           echo "SECRET=${{ secrets.SECRET }}" >> .env
           echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" >> .env
           echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> .env
           echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> .env
 
+          echo "# * GRAFANA" >> .env
           echo "GRAFANA_USER=${{ secrets.GRAFANA_USER }}" >> .env
           echo "GRAFANA_PASSWORD=${{ secrets.GRAFANA_PASSWORD }}" >> .env
-          echo "LOKI_URL=${{ secrets.LOKI_URL }}" >> .env
 
+          echo "# * SYNC-SERVICE" >> .env
           echo "TYPESENSE_API_KEY=${{ secrets.TYPESENSE_API_KEY }}" >> .env
           echo "TYPESENSE_HOST=${{ secrets.TYPESENSE_HOST }}" >> .env
           echo "TYPESENSE_PORT=${{ secrets.TYPESENSE_PORT }}" >> .env
           echo "TYPESENSE_PROTOCOL=${{ secrets.TYPESENSE_PROTOCOL }}" >> .env
-
+          echo "LOKI_URL=${{ secrets.LOKI_URL }}" >> .env
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
           echo "TZ=${{ secrets.TZ }}" >> .env
 
@@ -71,8 +72,6 @@ jobs:
             echo "Download template database"
             curl -L -o mariadb.sql.gz "https://drive.google.com/uc?export=download&id=${{ secrets.DB_BACKUP_ID }}"
 
-          # For testing purposes, create a dummy DB backup file
-          echo "-- Empty database dump for testing" > mariadb-init/mariadb.sql
           gzip mariadb-init/mariadb.sql
 
       - name: Make init.sh executable
