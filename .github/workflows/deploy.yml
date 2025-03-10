@@ -1,0 +1,141 @@
+name: Branch Deployment
+
+on:
+  push:
+    branches:
+      - "deploy/**"
+      - "release/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          # Get branch/tag name and use it for naming the archive
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          echo "DEPLOY_VERSION=${BRANCH_NAME}_${TIMESTAMP}" >> $GITHUB_ENV
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Docker Compose
+        uses: docker/setup-buildx-action@v2
+
+      - name: Create .env file
+        run: |
+          # Create .env file from GitHub secrets
+          touch .env
+          echo "PUBLIC_URL=${{ secrets.PUBLIC_URL }}" >> .env
+          echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
+          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+
+          echo "SECRET=${{ secrets.SECRET }}" >> .env
+          echo "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" >> .env
+          echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> .env
+          echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> .env
+
+          echo "GRAFANA_USER=${{ secrets.GRAFANA_USER }}" >> .env
+          echo "GRAFANA_PASSWORD=${{ secrets.GRAFANA_PASSWORD }}" >> .env
+          echo "LOKI_URL=${{ secrets.LOKI_URL }}" >> .env
+
+          echo "TYPESENSE_API_KEY=${{ secrets.TYPESENSE_API_KEY }}" >> .env
+          echo "TYPESENSE_HOST=${{ secrets.TYPESENSE_HOST }}" >> .env
+          echo "TYPESENSE_PORT=${{ secrets.TYPESENSE_PORT }}" >> .env
+          echo "TYPESENSE_PROTOCOL=${{ secrets.TYPESENSE_PROTOCOL }}" >> .env
+
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "TZ=${{ secrets.TZ }}" >> .env
+
+      - name: Download database backup
+        run: |
+          # Download MariaDB backup from cloud storage
+            echo "Download template database"
+            curl -L -o mariadb.sql.gz "https://drive.google.com/uc?export=download&id=${{ secrets.DB_BACKUP_ID }}"
+
+          # For testing purposes, create a dummy DB backup file
+          echo "-- Empty database dump for testing" > mariadb-init/mariadb.sql
+          gzip mariadb-init/mariadb.sql
+
+      - name: Make init.sh executable
+        run: |
+          chmod +x init.sh
+
+      - name: Run initialization script
+        run: ./init.sh
+
+      - name: Archive project
+        run: |
+          # Create archive of the current source code
+          tar -czf gifhow_${{ env.DEPLOY_VERSION }}.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=*.tar.gz \
+            .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gifhow-deployment-${{ env.DEPLOY_VERSION }}
+          path: gifhow_${{ env.DEPLOY_VERSION }}.tar.gz
+          retention-days: 7
+
+      - name: Deploy to server
+        if: ${{ success() }}
+        run: |
+          # Set up SSH for deployment
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+          # Copy the archive to the server
+          scp gifhow_${{ env.DEPLOY_VERSION }}.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+          # Connect to server and deploy
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Create deployment directory
+            mkdir -p ${{ env.DEPLOY_VERSION }}
+            tar -xzf gifhow_${{ env.DEPLOY_VERSION }}.tar.gz -C ${{ env.DEPLOY_VERSION }}
+            cd ${{ env.DEPLOY_VERSION }}
+            
+            # Update symbolic link for current deployment
+            cd ..
+            ln -sfn ${{ env.DEPLOY_VERSION }} current
+            
+            # Start services
+            cd current
+            docker compose up -d
+            
+            # Cleanup older deployments (keep last 3)
+            cd ..
+            ls -dt */ | grep -v "current" | tail -n +4 | xargs rm -rf
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up sensitive files
+          rm -f ~/.ssh/id_rsa
+          rm -f .env

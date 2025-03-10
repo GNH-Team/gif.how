@@ -11,10 +11,17 @@
 set -e  # Exit immediately if a command exits with a non-zero status
 
 # set up alias for docker compose in case it's not available
-alias "docker compose"="docker-compose"
+docker() {
+    if [ "$1" = "compose" ]; then
+        shift
+        docker-compose "$@"
+    else
+        command docker "$@"
+    fi
+}
 
 echo "[INFO] Starting MariaDB container..."
-docker compose up mariadb -d
+docker compose up -d mariadb
 if [ $? -ne 0 ]; then
     echo "[ERROR] Failed to start MariaDB container."
     exit 1
@@ -54,10 +61,8 @@ else
 fi
 
 echo "[INFO] Running: bun p:sync"
+cp ../.env .env.production
 bun p:sync
-
-echo "[INFO] Running: bun p:copy"
-bun p:copy
 
 cd ..
 
