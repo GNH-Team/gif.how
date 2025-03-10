@@ -33,17 +33,18 @@ sleep 5
 echo "[INFO] Changing directory to sync-service..."
 cd "./sync-service"
 
-echo "[INFO] Running bun commands..."
-echo "[INFO] Running: bun install"
-
+echo "[INFO] Running: bun install & copy .env file to sync-service directory"
 bun install
+sed -n '/# \* SYNC-SERVICE/,$p' ../.env > .env
 if [ $? -ne 0 ]; then
-    echo "[ERROR] bun install failed."
+    echo "[ERROR] bun setup failed."
     echo "[INFO] Shutting down containers..."
     cd ..
     docker compose down
     exit 1
 fi
+
+
 
 # Check if /prisma directory exists before running bun p:init
 if [ -d "prisma" ]; then

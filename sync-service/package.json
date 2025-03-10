@@ -7,7 +7,7 @@
     "p:init": "bun prisma init --datasource-provider=mysql",
     "p:sync": "bun prisma db pull && bun prisma generate",
     "prod": "bun build index.ts --target=node --minify --splitting --outdir=dist",
-    "p:copy": "cp ../.env .env.production"
+    "p:copy": "cp ../.env .env"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -21,7 +21,7 @@ services:
       FILES_MAX_UPLOAD_SIZE: 250mb
       FILES_MIME_TYPE_ALLOW_LIST: array:video/mp4,video/webm,image/gif,image/png,image/jpeg,image/webp
 
-      CORS_ENABLED: true
+      CORS_ENABLED: "true"
       CORS_ORIGIN: ${CORS_ORIGIN}
     volumes:
       - ./directus/extensions:/directus/extensions
@@ -34,7 +34,7 @@ services:
     container_name: gifhow-mariadb
     hostname: mariadb
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:10002:3306"
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
