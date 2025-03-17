@@ -18,9 +18,8 @@ services:
       SECRET: ${SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      FILES_MAX_UPLOAD_SIZE: 250mb
-      FILES_MIME_TYPE_ALLOW_LIST: array:video/mp4,video/webm,image/gif,image/png,image/jpeg,image/webp
-
+      FILES_MAX_UPLOAD_SIZE: 500mb
+      FILES_MIME_TYPE_ALLOW_LIST: array:image/*,video/*
       CORS_ENABLED: "true"
       CORS_ORIGIN: ${CORS_ORIGIN}
     volumes:
@@ -83,6 +82,30 @@ services:
     networks:
       - loki
 
+  adminer:
+    image: adminer:latest
+    container_name: gifhow-adminer
+    ports:
+      - "10003:8080"
+    depends_on:
+      - mariadb
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+    networks:
+      - hownet
+
+    # prometheus:
+    #   image: prom/prometheus:latest
+    #   container_name: gifhow-prometheus
+    #   ports:
+    #     - "10004:9090"
+    #   command:
+    #     - --config.file=/etc/prometheus/prometheus.yml
+    #   volumes:
+    #     - ./prometheus:/etc/prometheus
+    #   networks:
+    #     - hownet
+
   grafana:
     image: grafana/grafana:latest
     container_name: gifhow-grafana
@@ -126,6 +149,7 @@ services:
     environment:
       TYPESENSE_DATA_DIR: /data
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
+      TYPESENSE_ENABLE_CORS: "true"
     volumes:
       - ./typesense:/data
     networks:

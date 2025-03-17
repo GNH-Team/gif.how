@@ -1,6 +1,7 @@
 import { CronJob, sendAt } from "cron";
 
 import logger from "../utils/logger";
+import config from "../utils/env";
 
 export abstract class PollJob {
 	public id: string;
@@ -29,7 +30,7 @@ export class PollingService {
 			if (job.once) await job.once();
 
 			// Skip side effect jobs
-			if (job.isSideEffect) return;
+			if (job.isSideEffect) continue;
 
 			const cronjob = new CronJob(
 				job.schedule,
@@ -38,18 +39,18 @@ export class PollingService {
 					logger.info(`${job.id} ran`);
 				},
 				true,
-				"Asia/Ho_Chi_Minh",
+				config.TZ,
 			);
 
 			const dt = sendAt(job.schedule);
 			cronjob.addCallback(() => {
-				logger.info(`${job.id} ran at ${dt.toISOTime()}`, {
+				logger.info(`${job.id} ran at ${dt.toLocaleString()}`, {
 					label: "sync-service",
 				});
 			});
 			cronjob.errorHandler = (error) => {
 				logger.error(
-					`Error executing poll job: ${job.id} at ${dt.toISOTime()}`,
+					`Error executing poll job: ${job.id} at ${dt.toLocaleString()}`,
 					error,
 					{
 						label: "sync-service",
