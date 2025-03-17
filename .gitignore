@@ -1,6 +1,7 @@
 .env
 typesense/
 data
-mariadb-init/*
-!mariadb-init/.gitkeep
+config/mariadb-init/*
+!config/mariadb-init/.gitkeep
+config/grafana
 directus/uploads/*
