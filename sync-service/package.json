@@ -1,41 +1,41 @@
 {
-  "name": "sync-service",
-  "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "start": "bun run index.ts",
-    "p:init": "bun prisma init --datasource-provider=mysql",
-    "p:sync": "bun prisma db pull && bun prisma generate",
-    "prod": "bun build index.ts --target=node --minify --splitting --outdir=dist",
-    "p:copy": "cp ../.env .env.production"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/bun": "latest",
-    "prisma": "^6.4.1",
-    "type-fest": "^4.35.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "@prisma/client": "^6.4.1",
-    "@sinclair/typebox": "^0.34.28",
-    "ajv": "^8.17.1",
-    "cron": "^4.1.0",
-    "luxon": "^3.5.0",
-    "rambda": "^9.4.2",
-    "typesense": "^2.0.2",
-    "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0",
-    "winston-loki": "^6.1.3"
-  },
-  "trustedDependencies": [
-    "@biomejs/biome",
-    "@prisma/client",
-    "@prisma/engines",
-    "esbuild",
-    "prisma",
-    "protobufjs"
-  ]
+	"name": "sync-service",
+	"module": "index.ts",
+	"type": "module",
+	"scripts": {
+		"start": "bun run index.ts",
+		"p:init": "bun prisma init --datasource-provider=mysql",
+		"p:sync": "bun prisma db pull && bun prisma generate",
+		"prod": "bun build index.ts --target=node --minify --splitting --outdir=dist",
+		"p:copy": "cp ../.env .env.production"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "latest",
+		"prisma": "^6.4.1",
+		"type-fest": "^4.35.0"
+	},
+	"peerDependencies": {
+		"typescript": "^5.0.0"
+	},
+	"dependencies": {
+		"@prisma/client": "^6.4.1",
+		"@sinclair/typebox": "^0.34.28",
+		"ajv": "^8.17.1",
+		"cron": "^4.1.0",
+		"luxon": "^3.5.0",
+		"rambda": "^9.4.2",
+		"typesense": "^2.0.2",
+		"winston": "^3.17.0",
+		"winston-daily-rotate-file": "^5.0.0",
+		"winston-loki": "^6.1.3"
+	},
+	"trustedDependencies": [
+		"@biomejs/biome",
+		"@prisma/client",
+		"@prisma/engines",
+		"esbuild",
+		"prisma",
+		"protobufjs"
+	]
 }

@@ -9,17 +9,17 @@ services:
         condition: service_healthy
     environment:
       PUBLIC_URL: ${PUBLIC_URL}
-      DB_CLIENT: ${DB_CLIENT}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_CLIENT: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
       DB_DATABASE: ${DB_DATABASE}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       SECRET: ${SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      FILES_MAX_UPLOAD_SIZE: ${FILES_MAX_UPLOAD_SIZE}
-      FILES_MIME_TYPE_ALLOW_LIST: ${FILES_MIME_TYPE_ALLOW_LIST}
+      FILES_MAX_UPLOAD_SIZE: "500mb"
+      FILES_MIME_TYPE_ALLOW_LIST: array:image/*,video/*
     volumes:
       - ./directus/extensions:/directus/extensions
       - ./directus/uploads:/directus/uploads
@@ -31,7 +31,7 @@ services:
     container_name: gifhow-mariadb
     hostname: mariadb
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:10002:3306"
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
@@ -80,17 +80,17 @@ services:
     networks:
       - loki
 
-    # adminer:
-    #   image: adminer:latest
-    #   container_name: gifhow-adminer
-    #   ports:
-    #     - "10003:8080"
-    #   depends_on:
-    #     - mariadb
-    #   environment:
-    #     ADMINER_DEFAULT_SERVER: mariadb
-    #   networks:
-    #     - hownet
+  adminer:
+    image: adminer:latest
+    container_name: gifhow-adminer
+    ports:
+      - "10003:8080"
+    depends_on:
+      - mariadb
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+    networks:
+      - hownet
 
     # prometheus:
     #   image: prom/prometheus:latest
@@ -145,9 +145,9 @@ services:
     ports:
       - "10007:8108"
     environment:
-      TYPESENSE_DATA_DIR: ${TYPESENSE_DATA_DIR}
+      TYPESENSE_DATA_DIR: "/data"
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
-      TYPESENSE_ENABLE_CORS: ${TYPESENSE_ENABLE_CORS}
+      TYPESENSE_ENABLE_CORS: "true"
     volumes:
       - ./typesense:/data
     networks:

@@ -1,5 +1,6 @@
-import { chain, map, pipe, tryCatch } from "rambda";
+import { chain, isNil, isNotNil, map, pipe, tryCatch } from "rambda";
 import type { OverrideProperties } from "type-fest";
+import { DateTime } from "luxon";
 import type { sync_service, video_translations } from "@prisma/client";
 
 import { PollJob } from "./service";
@@ -7,8 +8,6 @@ import { PollJob } from "./service";
 import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import typesense from "../utils/typesense";
-import { DateTime } from "luxon";
-import config from "../utils/env";
 
 const JOB_NAME = "sync-updated-items";
 
@@ -19,10 +18,10 @@ type VideoTranslation = Pick<
 export class SyncUpdatedItems extends PollJob {
 	private sync: sync_service = {
 		id: 1, // This is a placeholder value. It will be updated after the first run.
-		failed_items: 0,
-		synced_items: 0, // Synced items since last batch.
+		failed_items: "",
+		synced_items: "", // Synced items since last batch.
 		batch_size: 1000,
-		last_sync_time: new Date(0),
+		last_sync_time: DateTime.now().toJSDate(),
 	};
 	private targetCollection = "videos";
 
@@ -31,16 +30,28 @@ export class SyncUpdatedItems extends PollJob {
 	}
 
 	async once(): Promise<void> {
-		const syncTime = await prisma.sync_service.findFirst({});
+		const syncRecord = await prisma.sync_service.findFirst({
+			where: {},
+			select: {
+				batch_size: true,
+				failed_items: true,
+				id: true,
+				last_sync_time: true,
+				synced_items: true,
+			},
+			take: this.sync.batch_size ?? 1000,
+			orderBy: {
+				id: "asc",
+			},
+		});
 
-		if (syncTime === null) {
-			await prisma.sync_service.create({
-				data: this.sync,
-			});
-		}
+		if (isNotNil(syncRecord)) this.sync = syncRecord;
 	}
 
 	async run(): Promise<void> {
+		// Store current query time to use as next last_sync_time
+		const queryTime = DateTime.now().toJSDate();
+
 		const staleItems = await prisma.video.findMany({
 			select: {
 				video_translations: {
@@ -57,23 +68,21 @@ export class SyncUpdatedItems extends PollJob {
 				// Prioritize items that have not been synced recently.
 				updated_at: "asc",
 			},
-			take: this.sync.batch_size ?? 1000,
 			where: {
-				status: "processed",
+				status: "published",
 				// Only fetch items that have been updated since the last sync.
-				// biome-ignore lint/style/noNonNullAssertion: <It's safe to assume that last_sync_time is not null.>
-				updated_at: { gt: this.sync.last_sync_time! },
+				updated_at: { gte: this.sync.last_sync_time },
 			},
 		});
 
-		if (staleItems.length === 0) {
-			logger.info("No new or updated items to sync.", {
+		if (!staleItems.length) {
+			logger.debug("No new or updated items to sync.", {
 				label: JOB_NAME,
 			});
 			return;
 		}
 
-		logger.info(`Found ${staleItems.length} item(s) to sync.`, {
+		logger.debug(`Found ${staleItems.length} item(s) to sync.`, {
 			label: JOB_NAME,
 		});
 
@@ -92,15 +101,18 @@ export class SyncUpdatedItems extends PollJob {
 		)(staleItems);
 
 		await this.upsertDocuments(docs);
+
+		// After processing, update sync time to the stored query time
+		await this.updatesyncRecord(queryTime);
 	}
 
 	private async upsertDocuments(
 		docs: OverrideProperties<VideoTranslation, { id: string }>[],
 	): Promise<void> {
-		let failedDocs = 0;
-		let succeededDocs = 0;
+		const failedDocs: string[] = [];
+		const succeededDocs: string[] = [];
 
-		logger.info(`Total docs in queue: ${docs.length}`, {
+		logger.debug(`Total docs in queue: ${docs.length}`, {
 			label: JOB_NAME,
 		});
 
@@ -124,41 +136,37 @@ export class SyncUpdatedItems extends PollJob {
 								.upsert(doc)) as VideoTranslation,
 						null,
 					)();
-					succeededDocs++;
+					succeededDocs.push(doc.id);
 				} catch {
-					failedDocs++;
+					failedDocs.push(doc.id);
 				}
 			}),
 		);
-		if (failedDocs > 0) {
-			logger.error(`${failedDocs} documents failed to upsert`, {
+
+		if (failedDocs.length > 0) {
+			logger.error(`${failedDocs.length} documents failed to upsert`, {
 				label: JOB_NAME,
 			});
 		}
 
-		this.sync.failed_items = failedDocs;
-		this.sync.synced_items = succeededDocs;
-		await this.updateSyncTime();
+		this.sync.failed_items = failedDocs.join(",");
+		this.sync.synced_items = succeededDocs.join(",");
 	}
 
-	private async updateSyncTime(): Promise<void> {
-		// ! This might not be the best way to handle timezone conversion.
-		const offsetHours = config.TZ === "UTC" ? 0 : 7;
-
-		const last_sync_time = DateTime.now()
-			.setZone(config.TZ)
-			.plus({ hours: offsetHours })
-			.toJSDate();
-
+	private async updatesyncRecord(syncRecord: Date): Promise<void> {
+		// Use the provided timestamp instead of current time
 		const data = {
 			failed_items: this.sync.failed_items,
 			synced_items: this.sync.synced_items,
-			last_sync_time,
+			last_sync_time: syncRecord,
 		};
-		const result = await prisma.sync_service.update({
+
+		const result = await prisma.sync_service.upsert({
 			where: { id: this.sync.id },
-			data,
+			create: data,
+			update: data,
 		});
+
 		this.sync = result;
 	}
 }

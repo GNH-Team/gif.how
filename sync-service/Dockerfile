@@ -5,8 +5,7 @@ FROM oven/bun:latest
 WORKDIR /app
 
 # Copy dependency manifests.
-COPY package.json bun.lock index.ts ./
-COPY .env.production ./.env
+COPY package.json bun.lock index.ts .env ./
 
 # Install dependencies with Bun.
 RUN bun install

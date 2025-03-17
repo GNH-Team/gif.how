@@ -1,7 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-import logger from "./logger";
 import ajv from "./validate";
+import type { SetNonNullable } from "type-fest";
 
 // Define our configuration schema using TypeBox
 const ConfigSchema = Type.Object({
@@ -14,7 +14,7 @@ const ConfigSchema = Type.Object({
 	NODE_ENV: Type.Optional(Type.String({ default: "development" })),
 
 	TYPESENSE_API_KEY: Type.String(), // Required
-	DATABASE_URL: Type.String() //Required
+	DATABASE_URL: Type.String(), //Required
 });
 
 // Extract the type from the schema
@@ -54,18 +54,15 @@ export class Config {
 		return this.config[key];
 	}
 
-	public getAll(): ConfigType {
-		return this.config;
+	public getAll(): SetNonNullable<ConfigType> {
+		return this.config as SetNonNullable<ConfigType>;
 	}
 }
 
 // Create a singleton instance of the configuration
 const configInstance = new Config();
 
-
 // Export the strongly typed configuration
-export const config: ConfigType = configInstance.getAll();
-
-console.log(config)
+export const config = configInstance.getAll();
 
 export default config;
