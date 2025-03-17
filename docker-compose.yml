@@ -18,8 +18,10 @@ services:
       SECRET: ${SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      FILES_MAX_UPLOAD_SIZE: "500mb"
+      FILES_MAX_UPLOAD_SIZE: 500mb
       FILES_MIME_TYPE_ALLOW_LIST: array:image/*,video/*
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: ${CORS_ORIGIN}
     volumes:
       - ./directus/extensions:/directus/extensions
       - ./directus/uploads:/directus/uploads
@@ -63,7 +65,7 @@ services:
     image: grafana/loki:latest
     container_name: gifhow-loki
     ports:
-      - "3100:3100"
+      - "10005:3100"
     command: -config.file=/etc/loki/config.yaml
     volumes:
       - ./config/loki:/etc/loki
@@ -145,7 +147,7 @@ services:
     ports:
       - "10007:8108"
     environment:
-      TYPESENSE_DATA_DIR: "/data"
+      TYPESENSE_DATA_DIR: /data
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
       TYPESENSE_ENABLE_CORS: "true"
     volumes:
