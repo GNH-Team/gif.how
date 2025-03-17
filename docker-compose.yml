@@ -44,22 +44,9 @@ services:
       retries: 3
     volumes:
       - storage:/var/lib/mysql
-      - ./mariadb-init:/docker-entrypoint-initdb.d:ro
+      - ./config/mariadb-init:/docker-entrypoint-initdb.d:ro
     networks:
       - hownet
-
-  adminer:
-    image: adminer:latest
-    container_name: gifhow-adminer
-    ports:
-      - "10003:8080"
-    depends_on:
-      - mariadb
-    environment:
-      ADMINER_DEFAULT_SERVER: mariadb
-    networks:
-      - hownet
-
   prometheus:
     image: prom/prometheus:latest
     container_name: gifhow-prometheus
@@ -68,7 +55,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ./config/prometheus:/etc/prometheus
     networks:
       - hownet
 
@@ -79,7 +66,7 @@ services:
       - "3100:3100"
     command: -config.file=/etc/loki/config.yaml
     volumes:
-      - ./logs/settings/loki:/etc/loki
+      - ./config/loki:/etc/loki
     networks:
       - loki
 
@@ -88,10 +75,34 @@ services:
     container_name: gifhow-promtail
     volumes:
       - /var/log:/var/log
-      - ./logs/settings/promtail:/etc/promtail
+      - ./config/promtail:/etc/promtail
     command: -config.file=/etc/promtail/config.yaml
     networks:
       - loki
+
+    # adminer:
+    #   image: adminer:latest
+    #   container_name: gifhow-adminer
+    #   ports:
+    #     - "10003:8080"
+    #   depends_on:
+    #     - mariadb
+    #   environment:
+    #     ADMINER_DEFAULT_SERVER: mariadb
+    #   networks:
+    #     - hownet
+
+    # prometheus:
+    #   image: prom/prometheus:latest
+    #   container_name: gifhow-prometheus
+    #   ports:
+    #     - "10004:9090"
+    #   command:
+    #     - --config.file=/etc/prometheus/prometheus.yml
+    #   volumes:
+    #     - ./prometheus:/etc/prometheus
+    #   networks:
+    #     - hownet
 
   grafana:
     image: grafana/grafana:latest
@@ -99,10 +110,11 @@ services:
     ports:
       - "10006:3000"
     environment:
-      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_PATHS_CONFIG: "/etc/grafana/custom.ini"
       GF_FEATURE_TOGGLES_ENABLE: "alertingSimplifiedRouting,alertingQueryAndExpressionsStepMode"
+
+    volumes:
+      - ./config/grafana/custom.ini:/etc/grafana/custom.ini
     entrypoint:
       - sh
       - -euc
@@ -116,7 +128,7 @@ services:
             access: proxy
             orgId: 1
             url: http://loki:3100
-            basicAuth: false
+            basicAuth: true
             isDefault: true
             version: 1
             editable: false
