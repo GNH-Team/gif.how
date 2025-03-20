@@ -1,4 +1,4 @@
-import { chain, isNil, isNotNil, map, pipe, tryCatch } from "rambda";
+import { tryCatch } from "rambda";
 import type { OverrideProperties } from "type-fest";
 import { DateTime } from "luxon";
 import type { sync_service, video_translations } from "@prisma/client";
@@ -15,11 +15,12 @@ type VideoTranslation = Pick<
 	video_translations,
 	"languages_code" | "keywords" | "title" | "slug" | "id"
 >;
+
 export class SyncUpdatedItems extends PollJob {
 	private sync: sync_service = {
 		id: 1, // This is a placeholder value. It will be updated after the first run.
 		failed_items: "",
-		synced_items: "", // Synced items since last batch.
+		synced_items: "",
 		batch_size: 1000,
 		last_sync_time: DateTime.now().toJSDate(),
 	};
@@ -45,33 +46,31 @@ export class SyncUpdatedItems extends PollJob {
 			},
 		});
 
-		if (isNotNil(syncRecord)) this.sync = syncRecord;
+		if (syncRecord != null) this.sync = syncRecord;
 	}
 
 	async run(): Promise<void> {
 		// Store current query time to use as next last_sync_time
 		const queryTime = DateTime.now().toJSDate();
 
-		const staleItems = await prisma.video.findMany({
+		const staleItems = await prisma.video_translations.findMany({
 			select: {
-				video_translations: {
-					select: {
-						id: true,
-						languages_code: true,
-						keywords: true,
-						title: true,
-						slug: true,
-					},
-				},
+				id: true,
+				languages_code: true,
+				keywords: true,
+				title: true,
+				slug: true,
 			},
 			orderBy: {
-				// Prioritize items that have not been synced recently.
-				updated_at: "asc",
+				video: {
+					updated_at: "asc",
+				},
 			},
 			where: {
 				status: "published",
-				// Only fetch items that have been updated since the last sync.
-				updated_at: { gte: this.sync.last_sync_time },
+				video: {
+					updated_at: { gte: this.sync.last_sync_time },
+				},
 			},
 		});
 
@@ -86,23 +85,15 @@ export class SyncUpdatedItems extends PollJob {
 			label: JOB_NAME,
 		});
 
-		// Extract data from items. For example: 1 video that contains 3 translations will be transformed into 3 items.
-		// Then change ID type from number to string.
-		const docs = pipe<
-			[typeof staleItems],
-			VideoTranslation[],
-			OverrideProperties<VideoTranslation, { id: string }>[]
-		>(
-			chain(({ video_translations }) => video_translations),
-			map((item) => ({
-				...item,
-				id: String(item.id),
-			})),
-		)(staleItems);
+		// Transform items and change ID type from number to string.
+		const docs = staleItems.map((item) => ({
+			...item,
+			id: String(item.id),
+		}));
 
 		await this.upsertDocuments(docs);
 
-		// After processing, update sync time to the stored query time
+		// After processing, update sync time to the stored query time.
 		await this.updatesyncRecord(queryTime);
 	}
 
@@ -154,14 +145,14 @@ export class SyncUpdatedItems extends PollJob {
 	}
 
 	private async updatesyncRecord(syncRecord: Date): Promise<void> {
-		// Use the provided timestamp instead of current time
+		// Use the provided timestamp instead of current time.
 		const data = {
 			failed_items: this.sync.failed_items,
 			synced_items: this.sync.synced_items,
 			last_sync_time: syncRecord,
 		};
 
-    const result = await prisma.sync_service.upsert({
+		const result = await prisma.sync_service.upsert({
 			where: { id: this.sync.id },
 			create: data,
 			update: data,

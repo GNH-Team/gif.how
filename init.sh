@@ -66,7 +66,7 @@ else
     if ! grep -q "binaryTargets" "$schema_file_name"; then
        # Insert binaryTargets only in the generator client block, with a tab for indentation
         sed -i '/^generator client {/,/^}/ { /provider =/a\
-          binaryTargets = ["native","debian-openssl-1.1.x"]
+          binaryTargets = ["native","debian-openssl-1.1.x", "debian-openssl-3.0.x"]
           }' "$schema_file_name"
         if [ $? -ne 0 ]; then
             echo "[ERROR] Failed to update binaryTargets in schema file."
