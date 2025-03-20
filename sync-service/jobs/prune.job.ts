@@ -1,17 +1,15 @@
-import { isNil, tryCatch } from "rambda";
+import { isNil } from "rambda";
 import type { sync_service, video_translations } from "@prisma/client";
 import type { OverrideProperties } from "type-fest";
 import type { SearchResponse } from "typesense/lib/Typesense/Documents";
 
 import { PollJob } from "./service";
-
 import logger from "../utils/logger";
 import prisma from "../utils/prisma";
 import typesense from "../utils/typesense";
 
 const JOB_NAME = "prune-removed-items";
 
-// We’ll work with video_translations since that’s what was synced in the previous job.
 type VideoTranslation = OverrideProperties<
 	Pick<
 		video_translations,
@@ -22,8 +20,7 @@ type VideoTranslation = OverrideProperties<
 
 export class PruneRemovedItems extends PollJob {
 	// This sync_service record keeps track of this job’s state.
-	// Note: Use a different placeholder id than the sync-updated-items job.
-	private sync: null | sync_service = null;
+	private sync: sync_service | null = null;
 	private targetCollection = "videos";
 
 	constructor() {
@@ -35,11 +32,8 @@ export class PruneRemovedItems extends PollJob {
 	async once(): Promise<void> {
 		const syncRecord = await prisma.sync_service.findFirst({
 			where: {},
-			orderBy: {
-				id: "asc",
-			},
+			orderBy: { id: "asc" },
 		});
-
 		this.sync = syncRecord;
 	}
 
@@ -48,8 +42,8 @@ export class PruneRemovedItems extends PollJob {
 			await this.once();
 			return;
 		}
-		// Retrieve a batch of documents from Typesense.
-		// We perform a search with a wildcard query.
+
+		// Retrieve a batch of documents from Typesense with a wildcard search.
 		let searchResult: SearchResponse<VideoTranslation>;
 		try {
 			searchResult = await typesense
@@ -69,7 +63,7 @@ export class PruneRemovedItems extends PollJob {
 			return;
 		}
 
-		logger.debug(searchResult.hits);
+		logger.debug("Search hits:", searchResult.hits);
 
 		// Extract document IDs from the search hits.
 		if (isNil(searchResult.hits)) {
@@ -77,21 +71,20 @@ export class PruneRemovedItems extends PollJob {
 		}
 		const docIds: string[] = searchResult.hits.map((hit) => hit.document.id);
 
-		// Fetch all current video translation IDs from the database.
+		// Fetch all current video translation IDs from the database that are published.
 		const translations = await prisma.video_translations.findMany({
-			select: { id: true, video: { select: { status: true } } },
-			take: this.sync.batch_size ?? 1000,
+			select: { id: true },
 			where: {
-				id: {
-					in: docIds.map(Number),
-				},
+				id: { in: docIds.map(Number) },
+				status: "published",
 			},
+			take: this.sync.batch_size ?? 1000,
 		});
 
 		const validIds = new Set(translations.map((t) => String(t.id)));
 
-		// Identify documents that no longer exist in the database.
-		const docsToPrune = docIds.filter((docId) => {});
+		// Identify documents that either do not exist in the database or are not published.
+		const docsToPrune = docIds.filter((docId) => !validIds.has(docId));
 
 		if (docsToPrune.length === 0) {
 			logger.info("No items to prune.", { label: JOB_NAME });
@@ -109,15 +102,16 @@ export class PruneRemovedItems extends PollJob {
 		await Promise.all(
 			docsToPrune.map(async (docId) => {
 				try {
-					// Wrap the deletion in a tryCatch for safety.
-					await tryCatch<void, Promise<void> | null>(async () => {
-						await typesense
-							.collections(this.targetCollection)
-							.documents(docId)
-							.delete();
-					}, null)();
+					await typesense
+						.collections(this.targetCollection)
+						.documents(docId)
+						.delete();
 					succeededDocs.push(docId);
-				} catch {
+				} catch (error) {
+					logger.error(`Failed to delete document ${docId}`, {
+						error,
+						label: JOB_NAME,
+					});
 					failedDocs.push(docId);
 				}
 			}),
