@@ -33,7 +33,7 @@ services:
     container_name: gifhow-mariadb
     hostname: mariadb
     ports:
-      - "127.0.0.1:10002:3306"
+      - "10002:3306"
     restart: always
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
@@ -49,6 +49,7 @@ services:
       - ./config/mariadb-init:/docker-entrypoint-initdb.d:ro
     networks:
       - hownet
+
   # prometheus:
   #   image: prom/prometheus:latest
   #   container_name: gifhow-prometheus
@@ -154,6 +155,7 @@ services:
       - ./typesense:/data
     networks:
       - hownet
+
   sync_service:
     container_name: gifhow-sync-service
     build:
@@ -168,17 +170,16 @@ services:
         condition: service_healthy
       typesense:
         condition: service_started
-      loki:
-        condition: service_started
     restart: always
     networks:
       - hownet
-      - loki
 
 networks:
   hownet:
-  loki:
-    driver: bridge
+    name: hownet
+    external: true
+# loki:
+#   driver: bridge
 
 volumes:
   storage:
