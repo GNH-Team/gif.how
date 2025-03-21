@@ -22,6 +22,7 @@ export class PruneRemovedItems extends PollJob {
 	// This sync_service record keeps track of this job’s state.
 	private sync: sync_service | null = null;
 	private targetCollection = "videos";
+	private limit = 100; //? Due to performance reason, typesense limit search results to 500
 
 	constructor() {
 		// Schedule as needed. Here we use the same cron pattern as the sync job.
@@ -52,8 +53,8 @@ export class PruneRemovedItems extends PollJob {
 				.search({
 					q: "*",
 					query_by: ["title", "keywords", "slug"],
-					per_page: this.sync.batch_size ?? 1000,
 					page: 1,
+					per_page: this.limit,
 				});
 		} catch (error) {
 			logger.error("Error retrieving documents from Typesense.", {
@@ -78,7 +79,7 @@ export class PruneRemovedItems extends PollJob {
 				id: { in: docIds.map(Number) },
 				status: "published",
 			},
-			take: this.sync.batch_size ?? 1000,
+			take: this.limit,
 		});
 
 		const validIds = new Set(translations.map((t) => String(t.id)));

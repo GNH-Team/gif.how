@@ -50,6 +50,39 @@ services:
     networks:
       - hownet
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gifhow-prometheus
+    ports:
+      - "10004:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+    networks:
+      - hownet
+
+  loki:
+    image: grafana/loki:latest
+    container_name: gifhow-loki
+    ports:
+      - "10005:3100"
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./config/loki:/etc/loki
+    networks:
+      - loki
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: gifhow-promtail
+    volumes:
+      - /var/log:/var/log
+      - ./config/promtail:/etc/promtail
+    command: -config.file=/etc/promtail/config.yaml
+    networks:
+      - loki
+
   adminer:
     image: adminer:latest
     container_name: gifhow-adminer
@@ -61,6 +94,40 @@ services:
       ADMINER_DEFAULT_SERVER: mariadb
     networks:
       - hownet
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gifhow-grafana
+    ports:
+      - "10006:3000"
+    environment:
+      GF_PATHS_CONFIG: "/etc/grafana/custom.ini"
+      GF_FEATURE_TOGGLES_ENABLE: "alertingSimplifiedRouting,alertingQueryAndExpressionsStepMode"
+
+    volumes:
+      - ./config/grafana/custom.ini:/etc/grafana/custom.ini
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        mkdir -p /etc/grafana/provisioning/datasources
+        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
+        apiVersion: 1
+        datasources:
+          - name: Loki
+            type: loki
+            access: proxy
+            orgId: 1
+            url: http://loki:3100
+            basicAuth: true
+            isDefault: true
+            version: 1
+            editable: false
+        EOF
+        /run.sh
+    networks:
+      - loki
+      - hownet
+
   typesense:
     image: typesense/typesense:28.0
     restart: on-failure
@@ -74,6 +141,7 @@ services:
     volumes:
       - ./typesense:/data
     networks:
+      - loki
       - hownet
 
   sync_service:
@@ -98,6 +166,8 @@ networks:
   hownet:
     name: hownet
     external: true
+  loki:
+    driver: bridge
 
 volumes:
   storage:

@@ -44,7 +44,7 @@ export class PollingService {
 
 			const dt = sendAt(job.schedule);
 			cronjob.addCallback(() => {
-				logger.info(`${job.id} ran at ${dt.toLocaleString()}`, {
+				logger.info(`${job.id} ran`, {
 					label: "sync-service",
 				});
 			});
